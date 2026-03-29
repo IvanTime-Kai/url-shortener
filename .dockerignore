@@ -1,0 +1,25 @@
+# Git
+.git
+.gitignore
+
+# Environment
+.env
+.env.docker
+
+# Binary đã build
+url-shortener
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Readme
+*.md

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/IvanTime-Kai/url-shortener/internal/service"
@@ -21,6 +22,7 @@ func NewLinkHandler(svc *service.LinkService) *LinkHandler {
 func (h *LinkHandler) Shorten(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		URL string `json:"url"`
+		TTLDays int `json:"ttl_days"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -28,7 +30,7 @@ func (h *LinkHandler) Shorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	link, err := h.svc.Shorten(r.Context(), req.URL)
+	link, err := h.svc.Shorten(r.Context(), req.URL, req.TTLDays)
 
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -41,7 +43,13 @@ func (h *LinkHandler) Shorten(w http.ResponseWriter, r *http.Request) {
 func (h *LinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 	code := chi.URLParam(r, "code")
 
-	link, err := h.svc.Resolve(r.Context(), code)
+	ip := r.RemoteAddr
+	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		ip = forwarded
+	}
+
+	userAgent := r.Header.Get("User-Agent")
+	link, err := h.svc.Resolve(r.Context(), code, ip, userAgent)
 
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "link nou found")
@@ -49,6 +57,23 @@ func (h *LinkHandler) Redirect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, link.OriginalURL, http.StatusFound)
+}
+
+func (h *LinkHandler) Stats(w http.ResponseWriter, r *http.Request) {
+	code := chi.URLParam(r, "code")
+
+	log.Println("code", code)
+
+	stats, err := h.svc.GetStats(r.Context(), code)
+
+	log.Println("stats", stats)
+	
+	if err != nil {
+		writeError(w, http.StatusNotFound, "link not found")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, stats)
 }
 
 func (h *LinkHandler) List(w http.ResponseWriter, r *http.Request) {
